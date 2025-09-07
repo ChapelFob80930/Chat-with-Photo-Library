@@ -1,0 +1,4 @@
+test_dataset/ filter=lfs diff=lfs merge=lfs -text
+app_image_index.index filter=lfs diff=lfs merge=lfs -text
+test_image_index.index filter=lfs diff=lfs merge=lfs -text
+captions.txt filter=lfs diff=lfs merge=lfs -text
