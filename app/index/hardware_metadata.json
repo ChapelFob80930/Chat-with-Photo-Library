@@ -1,0 +1,34 @@
+[
+  {
+    "filename": "nvidia_4060.jpg",
+    "path": "./data/hardware_images/nvidia_4060.jpg",
+    "brand": "NVIDIA",
+    "model": "RTX 4060",
+    "memory": "8GB",
+    "known_issues": [
+      "Drivers may crash in certain games",
+      "High temperatures under load"
+    ],
+    "solutions": [
+      "Update to the latest NVIDIA driver from official website",
+      "Ensure proper cooling and airflow in the case",
+      "Reduce in-game graphics settings if overheating persists"
+    ]
+  },
+  {
+    "filename": "nvidia_4070.jpg",
+    "path": "./data/hardware_images/nvidia_4070.jpg",
+    "brand": "NVIDIA",
+    "model": "RTX 4070",
+    "memory": "12GB",
+    "known_issues": [
+      "Occasional screen flickering",
+      "Compatibility issues with older motherboards"
+    ],
+    "solutions": [
+      "Update BIOS to the latest version",
+      "Use certified HDMI/DisplayPort cables",
+      "Update drivers and check for Windows updates"
+    ]
+  }
+]

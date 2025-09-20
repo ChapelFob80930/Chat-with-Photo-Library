@@ -2,3 +2,4 @@ venv
 .env
 financial_bs.ipynb
 sasta_jarvis.ipynb
+.idea

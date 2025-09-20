@@ -31,7 +31,7 @@ def initialise_model():
         # device = "cpu"
     model, preprocess = clip.load("ViT-B/32", device=device)
     # model, preprocess = clip.load("RN50", device="cpu")
-    print(f"Using device: {device}")
+    #print(f"Using device: {device}")
 
     return model, preprocess, device
 
@@ -42,3 +42,25 @@ try:
 except Exception as e:
     print("Error loading CLIP model:", e)
     exit(1)
+    
+# class ModelInitialization:
+    
+#     def __init__(self):
+#         self.model = None
+#         self.preprocess = None
+#         self.device = None
+        
+#     def initialise_model(self):
+#         try: 
+#         # Load the CLIP model
+#             self.device = "cuda" if torch.cuda.is_available() else "cpu"
+#                 # device = "cpu"
+#             self.model, self.preprocess = clip.load("ViT-B/32", device=device)
+#             # model, preprocess = clip.load("RN50", device="cpu")
+#             print(f"Using device: {device}")
+
+#             return model, preprocess, device
+
+#         except Exception as e:
+#             print("Error loading CLIP model:", e)
+#             exit(1)

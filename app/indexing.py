@@ -2,14 +2,17 @@
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 from PIL import Image
-from app.model import model, preprocess, device
+from model import model, preprocess, device
 import os
 from typing import List
 import faiss
 from faiss import read_index, write_index
 
-image_datapath = "C:/AI_Assisstant/test_dataset/Images"
-caption_datapath = "C:/AI_Assisstant/test_dataset/captions.txt/captions.txt"
+# image_datapath = "C:/AI_Assisstant/test_dataset/Images"
+image_datapath = "C:/AI_Assisstant/app/data/images"
+# caption_datapath = "C:/AI_Assisstant/test_dataset/captions.txt/captions.txt"
+index_path = "C:/AI_Assisstant/app/index/app_image_index.index"
+index_name = "test_image_index.index"
 
 def get_image_paths(directory: str, number: int = None) -> List[str]:
     torch.cuda.empty_cache()
@@ -72,8 +75,9 @@ def get_features_smart(image_paths, max_batch=16):
 # Usage
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 # model, preprocess = clip.load("ViT-B/32", device=device)
-if read_index("test_image_index.index") is None:
-    direc = "C:/AI_Assisstant/test_dataset/Images"
+index = None
+if not os.path.exists(index_path) or read_index(index_path) is None:
+    direc = image_datapath
     image_paths = get_image_paths(direc)
 
     image_features = get_features_smart(image_paths)
@@ -83,3 +87,6 @@ if read_index("test_image_index.index") is None:
     # index.add(image_features)
     index.add(image_features/image_features.norm(dim=-1, keepdim=True).cpu().numpy())
     write_index(index, "test_image_index.index")
+    
+    
+#TODO : Make function to upload custom folders for users to index their own images
