@@ -29,6 +29,9 @@ from torch.utils.data import DataLoader, TensorDataset
 from faiss import read_index, write_index
 # from dotenv import load_dotenv
 # load_dotenv()
+from nltk.tokenize import word_tokenize
+from nltk.stem import WordNetLemmatizer
+
 
 
 
@@ -184,6 +187,51 @@ def set_mode(use_prebuilt_index):
         return gr.update(interactive=True, visible=True), "Custom Index exists enter your query below" if os.path.exists("./index/custom_image_index.index") and os.path.exists(
                 "./index/custom_metadata.json") and len(os.listdir(direc_custom)) > 0 else "Upload your own images to index (in-memory, not saved).", gr.update(interactive=False, visible=False), gr.update(visible=False), gr.update(interactive=False, visible=False), gr.update(interactive=False, visible=False), gr.update(visible=True), gr.update(visible=False), gr.update(value = None), gr.update(value = None), gr.update(value = None)
 
+def encode_image(image_path):
+    with open(image_path, 'rb') as image_file:
+        encoded_image = base64.b64encode(image_file.read())
+        return encoded_image.decode('utf-8')
+
+def generate_metadata_description(image_path):
+    """
+       Generates metadata description for an image using OpenAI multimodal model.
+       """
+    # print("Generating metadata description for image")
+    response = session.client.chat.completions.create(
+        model="gpt-4.1-nano",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        # "text": "Generate a concise metadata description for this image, including objects, context, and possible use cases. Additionally, identify and list any named entities such as places, specific objects, brands, or characters that may appear in the image.",
+                        "text": (
+                                    "Generate a detailed metadata description for this image as a single string. "
+                                    "Include:\n"
+                                    "- Objects in the image\n"
+                                    "- People, including gender, approximate age, clothing, and role if visible\n"
+                                    "- Scene or environment\n"
+                                    "- Named entities like places, brands, or characters\n"
+                                    "- Any other relevant details that help in searching for this image (like sunglasses, hats, cars, etc.)\n"
+                                    "Format as a readable text, not JSON."
+                                )
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{encode_image(image_path)}"
+                        },
+                    },
+                ],
+            }
+        ],
+        max_tokens=300,
+    )
+    # Extract relevant features from the response
+    return response.choices[0].message.content
+# image_query('Write a short label of what is show in this image?', image_path)
+
 def upload_images(files):
     session.clear()
     count = 0
@@ -192,14 +240,17 @@ def upload_images(files):
     for f in files:
         save_path = f"./data/uploaded_images/uploaded_image_{count}.jpg"
         img = Image.open(f)
+        if img.mode == 'RGBA':
+            img = img.convert('RGB')
         img.save(save_path)
         session.metadata.append({
             "filename": f.name,
             "path": save_path,
-            "index": count
+            "index": count,
+            "description": generate_metadata_description(save_path)
         })
         session.images.append((f.name, img))
-        session.embeddings.append(embed_image(img))
+        session.embeddings.append(embed_image(img.resize((512,512), Image.LANCZOS)))
         count+=1
         # print(session.embeddings)
     session.index = faiss.IndexFlatIP(session.embeddings[0].shape[1])
@@ -223,7 +274,8 @@ def create_app_metadata():
         metadata.append({
             "filename": os.path.basename(path),
             "path": path,
-            "index": idx
+            "index": idx,
+            "description": generate_metadata_description(path)
         })
     with open("./index/app_metadata.json", "w") as f:
         json.dump(metadata, f)
@@ -265,7 +317,7 @@ def search_images(query_mode, text_query, image_query, k, index_name):
         return [], "No indexed images available. Upload or select demo mode."
     if query_mode == "Text":
         query_emb = embed_text(text_query)
-        distances, indices = index_load.search(query_emb, k)  # 2 signifies the number of topmost similar images to bring back
+        distances, indices = index_load.search(query_emb, k) if k is not None else index_load.search(query_emb, index_load.ntotal)  # 2 signifies the number of topmost similar images to bring back
         distances = distances[0]
         indices = indices[0]
         indices_distances = list(zip(indices, distances))
@@ -277,7 +329,7 @@ def search_images(query_mode, text_query, image_query, k, index_name):
         img = Image.open(image_query)
         print(img)
         query_emb = embed_image(img)
-        distances, indices = index_load.search(query_emb.reshape(1, -1),k)  # 2 signifies the number of topmost similar images to bring back
+        distances, indices = index_load.search(query_emb.reshape(1, -1),k) if k is not None else index_load.search(query_emb.reshape(1, -1), index_load.ntotal)  # 2 signifies the number of topmost similar images to bring back
         distances = distances[0]
         indices = indices[0]
         indices_distances = list(zip(indices, distances))
@@ -306,6 +358,15 @@ def search_images(query_mode, text_query, image_query, k, index_name):
 
     return images, f"Returned {len(match_indexes)} result(s).", gr.update(visible=True) if index_name=="hardware_index.index" else gr.update(visible=False), gr.update(interactive = True, visible=True) if index_name=="hardware_index.index" else gr.update(interactive = False, visible=False), gr.update(interactive = True, visible=True) if index_name=="hardware_index.index" else gr.update(interactive = False, visible=False)
 
+def have_common_word(str1: str, str2: str) -> bool:
+    lemmatizer = WordNetLemmatizer()
+    # str1_preprocessed = lemmatizer.lemmatize(word_tokenize(str1.lower().split()))
+    # str2_preprocessed = lemmatizer.lemmatize(word_tokenize(str2.lower()))
+    # words1 = set(str1_preprocessed.lower().split())
+    # words2 = set(str2_preprocessed.lower().split())
+    words1 = set(lemmatizer.lemmatize(word.lower()) for word in word_tokenize(str1))
+    words2 = set(lemmatizer.lemmatize(word.lower()) for word in word_tokenize(str2))
+    return len(words1.intersection(words2)) > 0
 
 def search_images_custom(query_mode, text_query, image_query, k):
     match_indexes = None
@@ -321,7 +382,7 @@ def search_images_custom(query_mode, text_query, image_query, k):
 
     if query_mode == "Text":
         query_emb = embed_text(text_query)
-        distances, indices = index_load.search(query_emb, k)  # 2 signifies the number of topmost similar images to bring back
+        distances, indices = index_load.search(query_emb, k) if k is not None else index_load.search(query_emb, index_load.ntotal)  # 2 signifies the number of topmost similar images to bring back
         distances = distances[0]
         indices = indices[0]
         indices_distances = list(zip(indices, distances))
@@ -332,7 +393,7 @@ def search_images_custom(query_mode, text_query, image_query, k):
     else:
         img = Image.open(image_query)
         query_emb = embed_image(img)
-        distances, indices = index_load.search(query_emb.reshape(1, -1),k)  # 2 signifies the number of topmost similar images to bring back
+        distances, indices = index_load.search(query_emb.reshape(1, -1),k) if k is not None else index_load.search(query_emb.reshape(1, -1), index_load.ntotal)  # 2 signifies the number of topmost similar images to bring back
         distances = distances[0]
         indices = indices[0]
         indices_distances = list(zip(indices, distances))
@@ -349,10 +410,30 @@ def search_images_custom(query_mode, text_query, image_query, k):
         if idx >= len(session.metadata) or idx<0:
             break
         meta = session.metadata[idx]
-        img = Image.open(meta["path"])
-        caption = f"score={dist:.2f}"
-        images.append((img, caption))
+        # print(meta)
+        if query_mode == "Text":
+            if have_common_word(text_query, meta["description"]):
+                img = Image.open(meta["path"])
+                caption = f"description={meta['description']} ,score={dist:.2f}"
+                images.append((img, caption))
+        else:
+            img = Image.open(meta["path"])
+            caption = f"description={meta['description']} ,score={dist:.2f}"
+            images.append((img, caption))
 
+        # if images == []:
+        #     img = Image.open(meta["path"])
+        #     caption = f"score={dist:.2f}"
+        #     images.append((img, caption))
+
+    if not images:
+        for (idx, dist) in match_indexes:
+            if idx >= len(session.metadata) or idx < 0:
+                continue
+            meta = session.metadata[idx]
+            img = Image.open(meta["path"])
+            caption = f"description={meta['description']} ,score={dist:.2f}"
+            images.append((img, caption))
 
     return images, f"Returned {len(match_indexes)} result(s).", gr.update(visible=False), gr.update(interactive = False, visible=False), gr.update(interactive = False, visible=False)
 
@@ -421,7 +502,7 @@ def llm_run(messages, context_text):
     )
 
     return session.client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model="gpt-4.1-nano",
         messages=[
             # {"role": "system", "content": "You are a helpful GPU customer support assistant. If the User query is not related to the product, politely inform them that you can only answer questions related to the product. If the user issue is new i.e. you can't find any relevant information in the context provided, suggest they contact customer support."},
             {"role": "system", "content": system_prompt},
@@ -471,7 +552,7 @@ with gr.Blocks() as demo:
     chatbot = gr.Chatbot(label="Customer Support" ,type="messages", visible=False)
     chat_text = gr.Textbox(label="Ask a question about the product you searched for", visible=False)
     chat_btn = gr.Button("Send", visible=False)
-    clear_btn_2 = gr.Button("Clear")
+    clear_btn_2 = gr.Button("Clear", visible=False)
 
     def respond(message, chat_history):
         print("Running bot")
